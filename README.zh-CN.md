@@ -38,7 +38,7 @@ chmod 600 scripts/channels.conf
 | Amp | `~/.config/agents/skills/pi-codex-channels` |
 | Factory Droid | `~/.factory/skills/pi-codex-channels` |
 
-推荐把仓库软链接到对应路径，便于升级。Cursor、OpenCode、Gemini CLI、VS Code Agent 等即使不自动发现本 Skill，只要能运行 shell，也可以直接调用 `scripts/pi-codex-channel`。没有 `CODEX_THREAD_ID` 时，会话按 git 项目隔离。
+推荐把仓库软链接到对应路径，便于升级。Cursor、OpenCode、Gemini CLI、VS Code Agent 等即使不自动发现本 Skill，只要能运行 shell，也可以直接调用 `scripts/pi-codex-channel`。没有 `CODEX_THREAD_ID` 时，会话按 git 项目隔离；项目 ID 来自 Git `origin` URL，未配置 origin 时使用仓库/目录名，不会散列本机绝对路径。
 
 Agent 调用脚本时必须保持工作目录为目标项目，并通过绝对路径或 Skill 相对路径定位 launcher；如果先切进 Skill 仓库，会把 session 错绑到 Skill 项目本身。
 

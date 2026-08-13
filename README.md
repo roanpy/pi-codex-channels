@@ -20,7 +20,7 @@ Coding agents can delegate to subagents, but those processes are often ephemeral
 
 ## How it works
 
-Under Codex, the launcher uses `CODEX_THREAD_ID` when the host exposes it. In every other shell it derives a stable project id from the git repository root (or the working directory outside git). It creates a private session directory under `~/.pi/agent/codex-sessions/<task-or-project-id>/`.
+Under Codex, the launcher uses `CODEX_THREAD_ID` when the host exposes it. In every other shell it derives a stable project id from the Git `origin` URL, falling back to the repository or directory name when no origin exists. It never hashes your absolute local path. It creates a private session directory under `~/.pi/agent/codex-sessions/<task-or-project-id>/`.
 
 Two lifecycle modes:
 
