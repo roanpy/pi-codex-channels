@@ -76,7 +76,7 @@ move_to_trash() {
     for _ in 1 2 3 4 5 6 7 8; do
       comm=$(ps -o comm= -p "$cur" 2>/dev/null | tr -d ' ')
       parent=$(ps -o ppid= -p "$cur" 2>/dev/null | tr -d ' ')
-      if [[ "$comm" == *ChatGPT.app*/codex ]]; then
+      if [[ "$comm" == *ChatGPT.app*/codex || "$comm" == */codex || "$comm" == codex ]]; then
         print -u2 "Refusing categorized deletion while Codex owns a direct Pi process (PID ${proc_pid})."
         exit 1
       fi
@@ -85,7 +85,14 @@ move_to_trash() {
     done
   done
 
-  local trash_target="$HOME/.Trash/pi-codex-sessions-${task_id}-$(date +%Y%m%d-%H%M%S)"
+  local trash_dir
+  if [[ -d "$HOME/.Trash" ]]; then
+    trash_dir="$HOME/.Trash"
+  else
+    trash_dir="${XDG_DATA_HOME:-$HOME/.local/share}/Trash/files"
+    mkdir -p -m 700 "$trash_dir"
+  fi
+  local trash_target="$trash_dir/pi-codex-sessions-${task_id}-$(date +%Y%m%d-%H%M%S)"
   mv "$target" "$trash_target"
   print "Moved to Trash: ${trash_target}"
 }

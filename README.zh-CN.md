@@ -59,7 +59,7 @@ chmod 600 scripts/channels.conf
 
 - 每 session 原子锁，拒绝两个写者同时写一个会话文件。
 - 一次性任务不会打到正在运行的交互 tmux 通道上。
-- 删除只进 macOS 废纸篓、必须显式 `--yes`、相关进程存活时拒绝执行。
+- 删除只进系统废纸篓（macOS 废纸篓或 Linux freedesktop Trash）、必须显式 `--yes`、相关进程存活时拒绝执行。
 - session 目录与运行时标记均为 `700`/`600`。
 - 任何位置都不放 API key：模型通过 Pi 自己的本地 provider 配置解析。
 
@@ -72,7 +72,7 @@ chmod 600 scripts/channels.conf
 
 ## 依赖
 
-- macOS，本机已安装 Pi（`pi` coding agent CLI）且在 `PATH` 上。
+- macOS 或 Linux（Windows 请用 WSL），本机已安装 Pi（`pi` coding agent CLI）且在 `PATH` 上。
 - Codex Desktop，命令须在其集成终端中运行（启动器要求 `CODEX_THREAD_ID`）。
 - `--interactive` 通道需要 `tmux`；`pi-codex-sessions list` 需要 `jq`。
 

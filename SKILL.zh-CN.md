@@ -119,7 +119,7 @@ List only Codex-linked Pi session categories and their channel IDs:
 ~/.codex/skills/pi-codex-channels/scripts/pi-codex-sessions list
 ```
 
-To remove one unused Codex task category, explicitly move it to macOS Trash:
+To remove one unused Codex task category, explicitly move it to the system Trash (macOS Trash or freedesktop Trash on Linux):
 
 ```zsh
 ~/.codex/skills/pi-codex-channels/scripts/pi-codex-sessions delete <full-codex-thread-id> --yes
