@@ -1,0 +1,15 @@
+# Per-channel model overrides for pi-codex-channel.
+# Copy to "channels.conf" next to the script (or set PI_CODEX_CHANNELS_CONF),
+# then edit the right-hand side to any provider/model your Pi installation
+# already knows. Run "pi models" to see what is configured locally.
+#
+# Format:  <channel> = <provider/model>
+# Lines without an entry for a channel keep the script's built-in default.
+# Unknown channels are ignored.
+
+# glm52  = anthropic/claude-sonnet-4-5
+# ds4pro = anthropic/claude-opus-4-1
+# v4flash = openai/gpt-5-mini
+# m3     = openai/gpt-5
+# kimi26 = anthropic/claude-sonnet-4-5
+# kimi3  = anthropic/claude-opus-4-1

@@ -1,0 +1,374 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+umask 077
+
+usage() {
+  print -u2 'Usage: pi-codex-channel <glm52|ds4pro|v4flash|m3|kimi26|kimi3> [topic] [--prompt <task> | --interactive] [--continue-from <session-key> | --fork-from <old-thread-id> <session-key>] [--dry-run]'
+  exit 64
+}
+
+(( $# >= 1 )) || usage
+
+channel="$1"
+shift
+topic=''
+continue_from=''
+fork_thread=''
+fork_key=''
+task_prompt=''
+interactive=false
+dry_run=false
+
+while (( $# )); do
+  case "$1" in
+    --continue-from)
+      (( $# >= 2 )) || usage
+      continue_from="$2"
+      shift 2
+      ;;
+    --fork-from)
+      (( $# >= 3 )) || usage
+      fork_thread="$2"
+      fork_key="$3"
+      shift 3
+      ;;
+    --prompt)
+      (( $# >= 2 )) || usage
+      task_prompt="$2"
+      shift 2
+      ;;
+    --interactive)
+      interactive=true
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    *)
+      [[ -z "$topic" ]] || usage
+      topic="$1"
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "$continue_from" && -n "$fork_thread" ]]; then
+  print -u2 'Use either --continue-from or --fork-from, not both.'
+  exit 64
+fi
+
+if [[ -n "$task_prompt" && "$interactive" == true ]]; then
+  print -u2 'Use either --prompt or --interactive, not both.'
+  exit 64
+fi
+
+if [[ -z "$task_prompt" && "$interactive" != true && "$dry_run" != true ]]; then
+  print -u2 'A task prompt is required by default. Use --interactive only for an explicit persistent Pi TUI.'
+  exit 64
+fi
+
+if [[ -z "${CODEX_THREAD_ID:-}" || ! "$CODEX_THREAD_ID" =~ '^[A-Za-z0-9-]+$' ]]; then
+  print -u2 'Run this from a Codex Desktop terminal with CODEX_THREAD_ID available.'
+  exit 1
+fi
+
+if ! command -v pi >/dev/null 2>&1; then
+  print -u2 'Pi is not available on PATH.'
+  exit 127
+fi
+
+case "$channel" in
+  glm52)
+    model='example/model'
+    role='GLM-5.2'
+    thinking='high'
+    session_key='glm52'
+    default_topic='Plan and implement'
+    role_prompt='Own the main plan-to-implementation path. Inspect relevant code, plan only to the degree the task needs, make the smallest complete change, run relevant checks, and report evidence. For an explicitly requested cross-module check, name the modules first; default to 12 relevant file reads, 16 tool calls, and at most 6 impact items. Exceed a budget only after stating the concrete blocker.'
+    ;;
+  ds4pro)
+    model='example/model'
+    role='DS4 Pro'
+    thinking='high'
+    session_key='ds4pro'
+    default_topic='Reasoning and writing'
+    role_prompt='Perform deep causal and architectural reasoning, deep audit, critical review, or high-quality technical writing. Ground claims in repository evidence. For an audit, state scope first; default to 20 relevant file reads, 24 tool calls, and at most 8 prioritized findings. Exceed a budget only after stating the concrete blocker. If explicitly assigned to take over after another model fails, implement the bounded task and run relevant checks; otherwise do not change files.'
+    ;;
+  v4flash)
+    model='example/model'
+    role='V4 Flash'
+    thinking='medium'
+    session_key='v4flash'
+    default_topic='Fast recon'
+    role_prompt='Rapidly explore and triage. Stop when evidence is sufficient and return concise verified facts with file evidence. State uncertainty and make only scoped requested changes.'
+    ;;
+  m3)
+    model='example/model'
+    role='MiniMax M3'
+    thinking='medium'
+    session_key='m3'
+    default_topic='Visual analysis'
+    role_prompt='Inspect supplied screenshots and mockups, then record concrete visual discrepancies with evidence. Do not edit implementation unless explicitly asked.'
+    ;;
+  kimi26)
+    model='example/model'
+    role='Kimi K2.6'
+    thinking='high'
+    session_key='kimi26'
+    default_topic='Adversarial review'
+    role_prompt='Perform an independent adversarial final review. Focus on requirements gaps, regressions, security, and unverified assumptions. Use the supplied change set and evidence; cite files and do not edit.'
+    ;;
+  kimi3)
+    model='example/model'
+    role='Kimi K3-256K'
+    thinking='high'
+    session_key='kimi3'
+    default_topic='Architecture'
+    role_prompt='Act as a high-value architecture and implementation-planning adviser. Inspect relevant repository evidence and propose a concrete plan with trade-offs and acceptance checks. Implement code only when the user explicitly assigns one bounded difficult task; do not perform routine coding.'
+    ;;
+  *)
+    usage
+    ;;
+esac
+
+# Optional per-channel model override. Lookup order: $PI_CODEX_CHANNELS_CONF,
+# then channels.conf next to this script. Lines: "<channel> = <provider/model>".
+# Missing file or missing channel entry keeps the built-in default above.
+conf_file="${PI_CODEX_CHANNELS_CONF:-${0:A:h}/channels.conf}"
+if [[ -f "$conf_file" ]]; then
+  conf_model=$(awk -v ch="$channel" '
+    /^[[:space:]]*(#|$)/ { next }
+    {
+      line = $0
+      sub(/[[:space:]]*#.*$/, "", line)
+      n = split(line, parts, "=")
+      if (n < 2) next
+      key = parts[1]
+      val = substr(line, index(line, "=") + 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+      if (key == ch && val != "") { print val; exit }
+    }
+  ' "$conf_file")
+  [[ -n "$conf_model" ]] && model="$conf_model"
+fi
+
+thread_short="${CODEX_THREAD_ID[1,13]}"
+if [[ -n "$continue_from" ]]; then
+  if [[ "$continue_from" == "cdx-${thread_short}-"* ]]; then
+    continue_from="${continue_from#cdx-${thread_short}-}"
+  fi
+  [[ "$continue_from" =~ '^[A-Za-z0-9-]+$' ]] || {
+    print -u2 'Session key must contain only letters, numbers, and hyphens.'
+    exit 64
+  }
+  [[ "$continue_from" != cdx-* ]] || {
+    print -u2 'Use a channel key such as glm52 or ds4pro, not a nested/full session id.'
+    exit 64
+  }
+  session_key="$continue_from"
+  role="${role} takeover"
+  role_prompt+=" Continue the existing session history; take ownership of the remaining task without repeating completed work."
+fi
+
+topic="${topic:-$default_topic}"
+agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+session_root="$agent_dir/codex-sessions"
+session_dir="$session_root/$CODEX_THREAD_ID"
+session_id="cdx-${thread_short}-${session_key}"
+display_name="Cdx-${thread_short}｜${role}｜${topic}"
+tmux_session="pi-cdx-${thread_short}-${session_key}"
+
+fork_session=''
+if [[ -n "$fork_thread" ]]; then
+  [[ "$fork_thread" =~ '^[A-Za-z0-9-]+$' && "$fork_key" =~ '^[A-Za-z0-9-]+$' ]] || {
+    print -u2 'Old thread ID and session key must contain only letters, numbers, and hyphens.'
+    exit 64
+  }
+  old_short="${fork_thread[1,13]}"
+  old_session_id="cdx-${old_short}-${fork_key}"
+  old_session_dir="$agent_dir/codex-sessions/$fork_thread"
+  [[ -d "$old_session_dir" ]] || {
+    print -u2 "No categorized Pi sessions found for old Codex task: $fork_thread"
+    exit 1
+  }
+  fork_session=$(find "$old_session_dir" -maxdepth 1 -type f -name "*_${old_session_id}.jsonl" -print -quit)
+  [[ -n "$fork_session" ]] || {
+    print -u2 "No Pi channel '$fork_key' found for old Codex task: $fork_thread"
+    exit 1
+  }
+fi
+
+if [[ "$dry_run" == true ]]; then
+  print "model=${model}"
+  print "thinking=${thinking}"
+  print "session_dir=${session_dir}"
+  print "session_id=${session_id}"
+  print "display_name=${display_name}"
+  if [[ -n "$task_prompt" ]]; then
+    print 'mode=direct-print'
+  elif [[ "$interactive" == true ]]; then
+    print 'mode=tmux-interactive'
+    print "tmux_session=${tmux_session}"
+  else
+    print 'mode=direct-print (task prompt required)'
+  fi
+  [[ -n "$fork_session" ]] && print "fork_from=${fork_session}"
+  exit 0
+fi
+
+mkdir -p -m 700 "$session_root" "$session_dir"
+chmod 700 "$agent_dir" "$session_root" "$session_dir"
+existing_session=$(find "$session_dir" -maxdepth 1 -type f -name "*_${session_id}.jsonl" -print -quit)
+if [[ -n "$continue_from" && -z "$existing_session" ]]; then
+  print -u2 "No existing Pi channel found for takeover: ${continue_from}"
+  exit 1
+fi
+if [[ -n "$fork_session" ]]; then
+  [[ -z "$existing_session" ]] || {
+    print -u2 "Target Pi channel already exists: $session_id"
+    exit 1
+  }
+  session_args=(--fork "$fork_session" --session-id "$session_id")
+elif [[ -n "$existing_session" ]]; then
+  session_args=(--session "$existing_session")
+else
+  session_args=(--session-id "$session_id")
+fi
+
+runtime_marker="$session_dir/.${session_id}.runtime"
+session_lock="$session_dir/.${session_id}.lock"
+pi_args=(--model "$model" --thinking "$thinking" --session-dir "$session_dir" "${session_args[@]}" --name "$display_name" --append-system-prompt "$role_prompt")
+
+read_field() {
+  local file="$1" key="$2"
+  [[ -f "$file" ]] || return 0
+  sed -n "s/^${key}=//p" "$file" | head -1
+}
+
+pid_alive() {
+  [[ "${1:-}" =~ '^[0-9]+$' ]] && kill -0 "$1" 2>/dev/null
+}
+
+marker_pi_alive() {
+  local marker_pid comm
+  marker_pid=$(read_field "$runtime_marker" pid)
+  pid_alive "$marker_pid" || return 1
+  comm=$(ps -o comm= -p "$marker_pid" 2>/dev/null | sed 's/[[:space:]]*$//')
+  [[ "${comm:t}" == pi ]]
+}
+
+clear_stale_lock_or_fail() {
+  local owner_pid
+  if [[ ! -d "$session_lock" ]]; then
+    if marker_pi_alive; then
+      print -u2 "Pi channel is already running: ${session_id}"
+      exit 1
+    fi
+    [[ ! -f "$runtime_marker" ]] || rm -f -- "$runtime_marker"
+    return 0
+  fi
+  owner_pid=$(read_field "$session_lock/owner" pid)
+  if pid_alive "$owner_pid" || marker_pi_alive; then
+    print -u2 "Pi channel is already running: ${session_id}"
+    exit 1
+  fi
+  rm -f -- "$session_lock/owner" "$runtime_marker"
+  rmdir "$session_lock" 2>/dev/null || {
+    print -u2 "Cannot clear stale Pi channel lock: ${session_lock}"
+    exit 1
+  }
+}
+
+clear_stale_lock_or_fail
+if [[ -n "$task_prompt" ]]; then
+  if command -v tmux >/dev/null 2>&1 && tmux has-session -t "=${tmux_session}" 2>/dev/null; then
+    print -u2 "Interactive Pi channel is already running: ${tmux_session}"
+    exit 1
+  fi
+  mkdir "$session_lock" 2>/dev/null || {
+    print -u2 "Pi channel is already locked: ${session_id}"
+    exit 1
+  }
+  {
+    print "pid=$$"
+    print "session_id=$session_id"
+    print "started_epoch=$(date +%s)"
+  } > "$session_lock/owner"
+  chmod 600 "$session_lock/owner"
+  pi_pid=''
+  cleanup_direct() {
+    local child_comm child_parent
+    if pid_alive "${pi_pid:-}"; then
+      child_comm=$(ps -o comm= -p "$pi_pid" 2>/dev/null | sed 's/[[:space:]]*$//')
+      child_parent=$(ps -o ppid= -p "$pi_pid" 2>/dev/null | tr -d ' ')
+      if [[ "${child_comm:t}" == pi && "$child_parent" == "$$" ]]; then
+        kill -TERM "$pi_pid" 2>/dev/null || true
+      fi
+    fi
+    rm -f -- "$runtime_marker" "$session_lock/owner"
+    rmdir "$session_lock" 2>/dev/null || true
+  }
+  trap cleanup_direct EXIT
+  print "Running ${display_name} (${session_id})"
+  pi "${pi_args[@]}" --print "$task_prompt" &
+  pi_pid=$!
+  {
+    print "pid=$pi_pid"
+    print "session_id=$session_id"
+    print "model=$model"
+    print "owner=codex"
+    print "mode=direct-print"
+    print "started_epoch=$(date +%s)"
+  } > "$runtime_marker"
+  chmod 600 "$runtime_marker"
+  if wait "$pi_pid"; then
+    exit_code=0
+  else
+    exit_code=$?
+  fi
+  pi_pid=''
+  exit "$exit_code"
+fi
+
+command -v tmux >/dev/null 2>&1 || {
+  print -u2 'tmux is required for interactive Pi channels.'
+  exit 127
+}
+
+if tmux has-session -t "=${tmux_session}" 2>/dev/null; then
+  running_session=$(tmux show-environment -t "=${tmux_session}" PI_SESSION_ID 2>/dev/null | sed -n 's/^PI_SESSION_ID=//p')
+  [[ "$running_session" == "$session_id" ]] || {
+    print -u2 "tmux session collision: ${tmux_session}"
+    exit 1
+  }
+  pane_pid=$(tmux display-message -p -t "${tmux_session}:0.0" '#{pane_pid}')
+else
+  tmux new-session -d -s "$tmux_session" -c "$PWD" -- pi "${pi_args[@]}"
+  pane_pid=$(tmux display-message -p -t "${tmux_session}:0.0" '#{pane_pid}')
+  tmux set-environment -t "=${tmux_session}" PI_OWNER codex
+  tmux set-environment -t "=${tmux_session}" PI_SESSION_ID "$session_id"
+  tmux set-environment -t "=${tmux_session}" PI_DISPLAY_NAME "$display_name"
+  tmux set-environment -t "=${tmux_session}" PI_KEEPALIVE none
+fi
+
+umask 077
+{
+  print "pid=$pane_pid"
+  print "session_id=$session_id"
+  print "model=$model"
+  print "owner=codex"
+  print "mode=tmux-interactive"
+  print "tmux_session=$tmux_session"
+  print "keepalive=none"
+  print "started_epoch=$(date +%s)"
+} > "$runtime_marker"
+chmod 600 "$runtime_marker"
+
+print "Opening ${display_name} (${session_id}) in ${tmux_session}"
+if [[ -t 0 && -t 1 && "${TERM:-dumb}" != dumb ]]; then
+  exec tmux attach-session -t "=${tmux_session}"
+fi
+print "Started detached. Attach from a terminal with: tmux attach-session -t ${tmux_session}"

@@ -1,0 +1,113 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+umask 077
+
+agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+session_root="$agent_dir/codex-sessions"
+
+usage() {
+  print -u2 'Usage: pi-codex-sessions list | delete <full-codex-thread-id> --yes | delete-current --yes'
+  exit 64
+}
+
+list_sessions() {
+  [[ -d "$session_root" ]] || {
+    print 'No categorized Codex Pi sessions.'
+    return 0
+  }
+
+  local task_dir count session_file session_id
+  for task_dir in "$session_root"/*(N/); do
+    count=$(find "$task_dir" -maxdepth 1 -type f -name '*.jsonl' | wc -l | tr -d ' ')
+    print "${task_dir:t}\t${count} session(s)"
+    for session_file in "$task_dir"/*.jsonl(N); do
+      session_id=$(jq -r 'select(.type=="session") | .id' "$session_file" | head -1)
+      [[ -n "$session_id" ]] && print "  ${session_id}"
+    done
+  done
+}
+
+move_to_trash() {
+  local task_id="$1"
+  [[ "$task_id" =~ '^[A-Za-z0-9-]+$' ]] || {
+    print -u2 'Invalid Codex thread id.'
+    exit 64
+  }
+
+  local target="$session_root/$task_id"
+  [[ -d "$target" && ! -L "$target" ]] || {
+    print -u2 "No categorized session directory for ${task_id}."
+    exit 1
+  }
+
+  local marker marker_pid lock owner_pid task_short tmux_name proc_pid cur comm parent
+  for marker in "$target"/*.runtime(N); do
+    marker_pid=$(sed -n 's/^pid=//p' "$marker" | head -1)
+    if [[ "$marker_pid" =~ '^[0-9]+$' ]] && kill -0 "$marker_pid" 2>/dev/null; then
+      print -u2 "Refusing to move an active Pi task to Trash (PID ${marker_pid})."
+      exit 1
+    fi
+  done
+  for lock in "$target"/*.lock(N/); do
+    owner_pid=$(sed -n 's/^pid=//p' "$lock/owner" 2>/dev/null | head -1)
+    if [[ "$owner_pid" =~ '^[0-9]+$' ]] && kill -0 "$owner_pid" 2>/dev/null; then
+      print -u2 "Refusing to move a locked Pi task to Trash (owner PID ${owner_pid})."
+      exit 1
+    fi
+  done
+
+  task_short="${task_id[1,13]}"
+  if command -v tmux >/dev/null 2>&1; then
+    tmux_name=$({ tmux list-sessions -F '#{session_name}' 2>/dev/null || true; } \
+      | awk -v prefix="pi-cdx-${task_short}-" 'index($0, prefix) == 1 { print; exit }')
+    if [[ -n "$tmux_name" ]]; then
+      print -u2 "Refusing to move a running tmux Pi task to Trash (${tmux_name})."
+      exit 1
+    fi
+  fi
+
+  # Native Codex app-server Pi processes do not expose a reliable task/session id.
+  # Refuse all categorized deletion while one exists instead of guessing ownership.
+  # Enumerate Pi root processes via the ps comm field. pgrep -x pi matches argv[0]
+  # and misses Node-launched Pi (Codex launcher) whose comm=pi but argv[0] differs.
+  for proc_pid in $(ps -A -o pid=,comm= 2>/dev/null | awk '{ c=$2; if (c=="") next; n=split(c,a,"/"); if (a[n]=="pi") print $1 }'); do
+    cur="$proc_pid"
+    for _ in 1 2 3 4 5 6 7 8; do
+      comm=$(ps -o comm= -p "$cur" 2>/dev/null | tr -d ' ')
+      parent=$(ps -o ppid= -p "$cur" 2>/dev/null | tr -d ' ')
+      if [[ "$comm" == *ChatGPT.app*/codex ]]; then
+        print -u2 "Refusing categorized deletion while Codex owns a direct Pi process (PID ${proc_pid})."
+        exit 1
+      fi
+      [[ -n "$parent" && "$parent" != 1 ]] || break
+      cur="$parent"
+    done
+  done
+
+  local trash_target="$HOME/.Trash/pi-codex-sessions-${task_id}-$(date +%Y%m%d-%H%M%S)"
+  mv "$target" "$trash_target"
+  print "Moved to Trash: ${trash_target}"
+}
+
+case "${1:-}" in
+  list)
+    (( $# == 1 )) || usage
+    list_sessions
+    ;;
+  delete)
+    (( $# == 3 )) && [[ "${3:-}" == '--yes' ]] || usage
+    move_to_trash "$2"
+    ;;
+  delete-current)
+    (( $# == 2 )) && [[ "${2:-}" == '--yes' ]] || usage
+    [[ -n "${CODEX_THREAD_ID:-}" ]] || {
+      print -u2 'CODEX_THREAD_ID is required for delete-current.'
+      exit 1
+    }
+    move_to_trash "$CODEX_THREAD_ID"
+    ;;
+  *)
+    usage
+    ;;
+esac
