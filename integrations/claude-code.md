@@ -5,33 +5,22 @@ a stable project id from the git repository root (or the working directory
 outside git), so every channel is scoped to the project you launched it from.
 Session continuation, takeover, and forking behave exactly as under Codex.
 
-## As a Claude Code skill
+## Install as a Claude Code skill
 
-Create `~/.claude/skills/pi-codex-channels/SKILL.md` (or
-`.claude/skills/pi-codex-channels/SKILL.md` inside a project) with:
+Clone the repository, then link the whole skill folder at user or project level:
 
-    ---
-    name: pi-codex-channels
-    description: Delegate a bounded task to a named Pi channel with a persistent, resumable session. Use when the user asks to route a task to a specific external model or a Pi channel.
-    ---
+    mkdir -p ~/.claude/skills
+    ln -s /path/to/pi-codex-channels ~/.claude/skills/pi-codex-channels
 
-    # Pi Codex Channels
+Or for one project:
 
-    Delegate bounded tasks to named Pi channels. The launcher derives a stable
-    project id from the git repository root, so sessions persist per project.
+    mkdir -p .claude/skills
+    ln -s /path/to/pi-codex-channels .claude/skills/pi-codex-channels
 
-    Run from the project root:
-
-        <path-to-repo>/scripts/pi-codex-channel <channel> "<topic>" --prompt "<full task>"
-
-    Channels and model overrides are documented in the repository README.
-    Always pass the complete task via `--prompt`; do not open a blank
-    interactive session unless the user explicitly asks for `--interactive`.
-    The launcher prints the Pi output; return it as your result.
-
-Replace `<path-to-repo>` with the absolute path where you cloned
-`pi-codex-channels`. Claude Code then translates "have glm52 review this
-change" into the corresponding shell call.
+Claude Code loads the repository's canonical `SKILL.md`; there is no separate
+Claude-specific copy to maintain. The skill is opt-in: ask explicitly for a Pi
+channel, then Claude Code runs the launcher with the complete task in
+`--prompt` mode.
 
 ## Directly from any shell
 

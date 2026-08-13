@@ -1,6 +1,6 @@
 ---
 name: pi-codex-channels
-description: Start or resume named Pi channels bound to the current Codex Desktop task. Use only when the user explicitly asks for Codex-Pi, a Pi channel, or this skill; do not use merely because the user requests a subagent or names an external model.
+description: Start or resume named Pi channels bound to the current Codex task or local project. Use from Codex, Claude Code, Amp, Factory Droid, or another shell-capable coding agent only when the user explicitly asks for a Pi channel or this skill; do not use merely because the user requests a subagent or names an external model.
 ---
 
 # Pi Codex Channels
@@ -11,19 +11,19 @@ description: Start or resume named Pi channels bound to the current Codex Deskto
 - A request for a subagent or an external model is not permission to use Codex-Pi. Use the requested native Codex collaboration model when available; otherwise report that it is unavailable and ask before falling back to Pi.
 - Do not let this skill take over ordinary delegation or act as the default external-model adapter.
 
-Run the bundled launcher from a terminal opened by Codex Desktop. It derives the current `CODEX_THREAD_ID`, creates a private Pi session directory for that exact Codex task, and uses its first 13 characters in session IDs and display names. On later launches it opens the exact existing session file, even if the terminal's working directory changed.
+Resolve the bundled launcher relative to this `SKILL.md`, but run it with the target project as the working directory. It uses `CODEX_THREAD_ID` when available; otherwise it derives a stable project id from the target git repository root. It creates a private Pi session directory for that task or project and reopens the exact existing session file on later launches. Never change into the skill directory before invoking the launcher.
 
 The default lifecycle is one-shot: delegated `--prompt` work runs directly and exits when complete, while its JSONL session history is retained for later continuation. Persistent interactive channels are opt-in with `--interactive` and run inside a stable `pi-cdx-<thread>-<channel>` tmux session.
 
 ```zsh
-./scripts/pi-codex-channel glm52 --interactive
-./scripts/pi-codex-channel ds4pro "Payment refactor" --interactive
+<skill-dir>/scripts/pi-codex-channel glm52 --interactive
+<skill-dir>/scripts/pi-codex-channel ds4pro "Payment refactor" --interactive
 ```
 
 When Codex delegates work, pass the complete task with `--prompt`; the launcher runs Pi non-interactively, records the result in the named channel, removes its transient runtime marker, and returns output to Codex. A blank invocation is rejected by default. For a human-driven persistent TUI, pass `--interactive` explicitly.
 
 ```zsh
-./scripts/pi-codex-channel glm52 "payments" \
+<skill-dir>/scripts/pi-codex-channel glm52 "payments" \
   --prompt "Implement the confirmed payment retry fix and run the related tests; do not expand scope."
 ```
 
@@ -86,13 +86,13 @@ For deep audits, require the model to state scope first. Default budget: 20 rele
 List only Codex-linked Pi session categories and their channel IDs:
 
 ```zsh
-./scripts/pi-codex-sessions list
+<skill-dir>/scripts/pi-codex-sessions list
 ```
 
 To remove one unused Codex task category, explicitly move it to the system Trash (macOS Trash or freedesktop Trash on Linux):
 
 ```zsh
-./scripts/pi-codex-sessions delete <full-codex-thread-id> --yes
+<skill-dir>/scripts/pi-codex-sessions delete <task-or-project-id> --yes
 ```
 
 Use `delete-current --yes` only when the current Codex task's Pi history is no longer needed. Never delete sessions automatically. The deletion command refuses to proceed while a related runtime marker, lock, tmux channel, or any unmapped direct Codex Pi process is still active.

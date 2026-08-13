@@ -1,6 +1,6 @@
 # Pi Codex 通道
 
-从 Codex Desktop 把边界明确的任务委派给指定模型的 Pi 命名通道，session 可持久保留、可续接、可交接。
+从 Codex、Claude Code、Amp、Factory Droid 或其他能运行 shell 的本地 Agent，把边界明确的任务委派给指定模型的 Pi 命名通道；session 可持久保留、可续接、可交接。
 
 [English](README.md) · 简体中文
 
@@ -24,12 +24,23 @@ cp scripts/channels.conf.example scripts/channels.conf
 chmod 600 scripts/channels.conf
 # 编辑 scripts/channels.conf；用 `pi models` 查看本机可用模型
 
-# 在 Codex Desktop 终端中：
+# 在目标项目目录中（Codex、Claude Code 或普通终端）：
 ./scripts/pi-codex-channel glm52 "支付模块" \
   --prompt "实施已确认的支付重试修复并运行相关测试；不要扩大范围。"
 ```
 
-作为 Codex skill 安装：把仓库内容复制到 `~/.codex/skills/pi-codex-channels/`。
+## 宿主平台
+
+| 平台 | Skill 安装路径 |
+| --- | --- |
+| Codex | `~/.codex/skills/pi-codex-channels` |
+| Claude Code | `~/.claude/skills/pi-codex-channels` |
+| Amp | `~/.config/agents/skills/pi-codex-channels` |
+| Factory Droid | `~/.factory/skills/pi-codex-channels` |
+
+推荐把仓库软链接到对应路径，便于升级。Cursor、OpenCode、Gemini CLI、VS Code Agent 等即使不自动发现本 Skill，只要能运行 shell，也可以直接调用 `scripts/pi-codex-channel`。没有 `CODEX_THREAD_ID` 时，会话按 git 项目隔离。
+
+Agent 调用脚本时必须保持工作目录为目标项目，并通过绝对路径或 Skill 相对路径定位 launcher；如果先切进 Skill 仓库，会把 session 错绑到 Skill 项目本身。
 
 ## 两种生命周期
 
@@ -72,9 +83,9 @@ chmod 600 scripts/channels.conf
 
 ## 依赖
 
-- macOS 或 Linux（Windows 请用 WSL），本机已安装 Pi（`pi` coding agent CLI）且在 `PATH` 上。
-- Codex（Desktop 或 CLI），命令在暴露 `CODEX_THREAD_ID` 的终端中运行；**或**任意其他终端（包括 Claude Code 终端），此时启动器会从 git 仓库根目录派生稳定的项目 ID。会话删除在 macOS 上进废纸篓，在 Linux 上进 freedesktop Trash。
-- `--interactive` 通道需要 `tmux`；`pi-codex-sessions list` 需要 `jq`。
+- macOS 或 Linux（Windows 请用 WSL），本机已安装 [Pi](https://github.com/earendil-works/pi)、`zsh`，且均在 `PATH` 上。
+- 任意具备 shell 工具的本地 Coding Agent；有 `CODEX_THREAD_ID` 时按任务隔离，否则按 git 项目隔离。
+- 项目 ID 需要 `sha256sum` 或 `shasum`；`--interactive` 需要 `tmux`；会话列表需要 `jq`；Linux 安全删除需要 `gio`（GLib）。
 
 Claude Code 集成见 [integrations/claude-code.md](integrations/claude-code.md)（英文）。
 
