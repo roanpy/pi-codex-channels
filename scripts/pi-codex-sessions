@@ -108,11 +108,18 @@ case "${1:-}" in
     ;;
   delete-current)
     (( $# == 2 )) && [[ "${2:-}" == '--yes' ]] || usage
-    [[ -n "${CODEX_THREAD_ID:-}" ]] || {
-      print -u2 'CODEX_THREAD_ID is required for delete-current.'
-      exit 1
-    }
-    move_to_trash "$CODEX_THREAD_ID"
+    if [[ -n "${CODEX_THREAD_ID:-}" ]]; then
+      [[ "$CODEX_THREAD_ID" =~ '^[A-Za-z0-9-]+$' ]] || {
+        print -u2 'CODEX_THREAD_ID must contain only letters, numbers, and hyphens.'
+        exit 1
+      }
+      move_to_trash "$CODEX_THREAD_ID"
+    else
+      project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)
+      project_root="${project_root:A}"
+      hash=$(print -n "$project_root" | shasum -a 256 | cut -c1-12)
+      move_to_trash "cc-${hash}"
+    fi
     ;;
   *)
     usage

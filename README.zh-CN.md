@@ -73,8 +73,10 @@ chmod 600 scripts/channels.conf
 ## 依赖
 
 - macOS 或 Linux（Windows 请用 WSL），本机已安装 Pi（`pi` coding agent CLI）且在 `PATH` 上。
-- Codex Desktop，命令须在其集成终端中运行（启动器要求 `CODEX_THREAD_ID`）。
+- Codex（Desktop 或 CLI），命令在暴露 `CODEX_THREAD_ID` 的终端中运行；**或**任意其他终端（包括 Claude Code 终端），此时启动器会从 git 仓库根目录派生稳定的项目 ID。会话删除在 macOS 上进废纸篓，在 Linux 上进 freedesktop Trash。
 - `--interactive` 通道需要 `tmux`；`pi-codex-sessions list` 需要 `jq`。
+
+Claude Code 集成见 [integrations/claude-code.md](integrations/claude-code.md)（英文）。
 
 ## 许可证
 

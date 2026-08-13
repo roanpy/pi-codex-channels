@@ -69,9 +69,22 @@ if [[ -z "$task_prompt" && "$interactive" != true && "$dry_run" != true ]]; then
   exit 64
 fi
 
-if [[ -z "${CODEX_THREAD_ID:-}" || ! "$CODEX_THREAD_ID" =~ '^[A-Za-z0-9-]+$' ]]; then
-  print -u2 'Run this from a Codex Desktop terminal with CODEX_THREAD_ID available.'
-  exit 1
+# Derive the task identifier. Codex exposes CODEX_THREAD_ID; outside Codex
+# (e.g. a Claude Code terminal or any shell) fall back to a stable project id
+# derived from the git repository root, or the working directory outside git.
+if [[ -n "${CODEX_THREAD_ID:-}" ]]; then
+  [[ "$CODEX_THREAD_ID" =~ '^[A-Za-z0-9-]+$' ]] || {
+    print -u2 'CODEX_THREAD_ID must contain only letters, numbers, and hyphens.'
+    exit 1
+  }
+  TASK_ID="$CODEX_THREAD_ID"
+  task_source='codex'
+else
+  project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)
+  project_root="${project_root:A}"
+  hash=$(print -n "$project_root" | shasum -a 256 | cut -c1-12)
+  TASK_ID="cc-${hash}"
+  task_source='claude'
 fi
 
 if ! command -v pi >/dev/null 2>&1; then
@@ -155,7 +168,7 @@ if [[ -f "$conf_file" ]]; then
   [[ -n "$conf_model" ]] && model="$conf_model"
 fi
 
-thread_short="${CODEX_THREAD_ID[1,13]}"
+thread_short="${TASK_ID[1,13]}"
 if [[ -n "$continue_from" ]]; then
   if [[ "$continue_from" == "cdx-${thread_short}-"* ]]; then
     continue_from="${continue_from#cdx-${thread_short}-}"
@@ -176,7 +189,7 @@ fi
 topic="${topic:-$default_topic}"
 agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 session_root="$agent_dir/codex-sessions"
-session_dir="$session_root/$CODEX_THREAD_ID"
+session_dir="$session_root/$TASK_ID"
 session_id="cdx-${thread_short}-${session_key}"
 display_name="Cdx-${thread_short}｜${role}｜${topic}"
 tmux_session="pi-cdx-${thread_short}-${session_key}"
@@ -241,6 +254,9 @@ fi
 runtime_marker="$session_dir/.${session_id}.runtime"
 session_lock="$session_dir/.${session_id}.lock"
 pi_args=(--model "$model" --thinking "$thinking" --session-dir "$session_dir" "${session_args[@]}" --name "$display_name" --append-system-prompt "$role_prompt")
+
+# Write the task source alongside the runtime marker so cross-tool collision
+# checks and future reapers can distinguish Codex-owned from project-owned Pi.
 
 read_field() {
   local file="$1" key="$2"
@@ -319,7 +335,7 @@ if [[ -n "$task_prompt" ]]; then
     print "pid=$pi_pid"
     print "session_id=$session_id"
     print "model=$model"
-    print "owner=codex"
+    print "owner=${task_source}"
     print "mode=direct-print"
     print "started_epoch=$(date +%s)"
   } > "$runtime_marker"
@@ -348,7 +364,7 @@ if tmux has-session -t "=${tmux_session}" 2>/dev/null; then
 else
   tmux new-session -d -s "$tmux_session" -c "$PWD" -- pi "${pi_args[@]}"
   pane_pid=$(tmux display-message -p -t "${tmux_session}:0.0" '#{pane_pid}')
-  tmux set-environment -t "=${tmux_session}" PI_OWNER codex
+  tmux set-environment -t "=${tmux_session}" PI_OWNER "$task_source"
   tmux set-environment -t "=${tmux_session}" PI_SESSION_ID "$session_id"
   tmux set-environment -t "=${tmux_session}" PI_DISPLAY_NAME "$display_name"
   tmux set-environment -t "=${tmux_session}" PI_KEEPALIVE none
@@ -359,7 +375,7 @@ umask 077
   print "pid=$pane_pid"
   print "session_id=$session_id"
   print "model=$model"
-  print "owner=codex"
+  print "owner=${task_source}"
   print "mode=tmux-interactive"
   print "tmux_session=$tmux_session"
   print "keepalive=none"

@@ -65,7 +65,7 @@ Run `pi models` to list providers and models configured on your machine. Channel
 - Exiting a Pi process does not delete its JSONL history. Never delete it merely because a one-shot call finished.
 - In a new Codex task, fork a channel from an older task instead of moving it: `glm52 "continue payments" --fork-from <old-full-codex-thread-id> glm52`. The selected model may differ from the old channel.
 - Keep all roles separate by default. Never run two models against the same Pi session concurrently.
-- Do not use this launcher outside a Codex Desktop terminal: it intentionally fails when `CODEX_THREAD_ID` is absent.
+- Outside Codex (for example a Claude Code terminal), the launcher derives a stable project id from the git repository root instead of `CODEX_THREAD_ID`; see `integrations/claude-code.md`.
 - Do not launch a second Pi against a running tmux channel. Close or detach the existing `pi-cdx-*` channel first; one Pi process owns one session at a time.
 - Do not place API keys in commands, prompts, names, or this skill. Pi uses its existing local provider configuration.
 

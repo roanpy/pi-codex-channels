@@ -93,13 +93,13 @@ You do not need these specific providers. Any `provider/model` pair your Pi know
 ## Requirements
 
 - macOS or Linux with [Pi](https://github.com/badlogic/lemern) (the `pi` coding agent CLI) on `PATH`. On Windows, run inside WSL.
-- Codex (Desktop or CLI), with commands run from a terminal that exposes `CODEX_THREAD_ID`. Session deletion moves to the macOS Trash or the freedesktop Trash on Linux.
+- Codex (Desktop or CLI), with commands run from a terminal that exposes `CODEX_THREAD_ID`; **or** any other shell (including a Claude Code terminal), where the launcher falls back to a stable project id derived from the git repository root. Session deletion moves to the macOS Trash or the freedesktop Trash on Linux.
 - `tmux` only for `--interactive` channels.
 - `jq` only for `pi-codex-sessions list`.
 
 ## Platform notes
 
-- **Codex only, not Claude Code.** The entire session model keys off `CODEX_THREAD_ID`, which Claude Code does not provide. Supporting Claude Code would require a different session-binding mechanism and is out of scope.
+- **Codex and Claude Code (and any shell).** Under Codex the session model keys off `CODEX_THREAD_ID`. Outside Codex it keys off the git repository root, giving one persistent channel namespace per project. See [integrations/claude-code.md](integrations/claude-code.md) for a ready-made Claude Code skill.
 - Session history and runtime state live under `~/.pi/agent/codex-sessions/` on every platform.
 
 ## Project status
