@@ -62,18 +62,18 @@ Agents must keep the target project as the command working directory while invok
 
 ## Channels
 
-Six named channels ship with built-in defaults matching the original author's subscriptions. Override any of them in `channels.conf` without editing the script:
+Six named channels are available. The script ships with **no built-in model
+defaults**: map each channel you use to a `provider/model` your Pi knows via
+`channels.conf` (see `scripts/channels.conf.example`). Channel roles:
 
-| Channel | Built-in default | Intended role |
-| --- | --- | --- |
-| `glm52` | `example/model` | Planning and implementation |
-| `ds4pro` | `example/model` | Deep audit, reasoning, long-form writing |
-| `v4flash` | `example/model` | Fast recon and triage |
-| `m3` | `example/model` | Screenshot/mockup visual analysis |
-| `kimi26` | `example/model` | Independent adversarial review |
-| `kimi3` | `example/model` | Bounded high-value architecture tasks |
-
-You do not need these specific providers. Any `provider/model` pair your Pi knows works — see `scripts/channels.conf.example`.
+| Channel | Intended role |
+| --- | --- |
+| `glm52` | Planning and implementation |
+| `ds4pro` | Deep audit, reasoning, long-form writing |
+| `v4flash` | Fast recon and triage |
+| `m3` | Screenshot/mockup visual analysis |
+| `kimi26` | Independent adversarial review |
+| `kimi3` | Bounded high-value architecture tasks |
 
 ## Session handoff
 

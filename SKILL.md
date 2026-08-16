@@ -42,16 +42,20 @@ Only mention the selected channel briefly. Do not ask the user to choose a model
 
 ## Configure models
 
-Each channel maps to a `provider/model` that your local Pi installation must already know. The script ships with built-in defaults that match the original author's subscriptions; override any channel without editing the script:
+Each channel maps to a `provider/model` that your local Pi installation must already know. The script ships with **no built-in model defaults**; configure every channel you use:
 
 ```zsh
 cp scripts/channels.conf.example scripts/channels.conf
 chmod 600 scripts/channels.conf
-# edit scripts/channels.conf, then:
-export PI_CODEX_CHANNELS_CONF=/path/to/channels.conf   # optional; default is channels.conf next to the script
+# edit scripts/channels.conf and add every channel you plan to use:
+#   glm52 = <provider/model>
+#   ds4pro = <provider/model>
+#   ...
+# Optional: point at a custom file with:
+export PI_CODEX_CHANNELS_CONF=/path/to/channels.conf
 ```
 
-Run `pi models` to list providers and models configured on your machine. Channels without an override keep the built-in default.
+Run `pi models` to list providers and models configured on your machine. Invoking an unconfigured channel fails with a clear error.
 
 - Treat the configured mapping as authoritative. Do not inspect Pi's model registry, discover additional models, or auto-select a different provider/model merely because it is available.
 - Only inspect model availability after a concrete launch error. Retry transient transport failures with the configured model first; report the error and proposed fallback, and never switch silently.

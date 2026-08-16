@@ -105,7 +105,6 @@ fi
 
 case "$channel" in
   glm52)
-    model='example/model'
     role='GLM-5.2'
     thinking='high'
     session_key='glm52'
@@ -113,7 +112,6 @@ case "$channel" in
     role_prompt='Own the main plan-to-implementation path. Inspect relevant code, plan only to the degree the task needs, make the smallest complete change, run relevant checks, and report evidence. For an explicitly requested cross-module check, name the modules first; default to 12 relevant file reads, 16 tool calls, and at most 6 impact items. Exceed a budget only after stating the concrete blocker.'
     ;;
   ds4pro)
-    model='example/model'
     role='DS4 Pro'
     thinking='high'
     session_key='ds4pro'
@@ -121,7 +119,6 @@ case "$channel" in
     role_prompt='Perform deep causal and architectural reasoning, deep audit, critical review, or high-quality technical writing. Ground claims in repository evidence. For an audit, state scope first; default to 20 relevant file reads, 24 tool calls, and at most 8 prioritized findings. Exceed a budget only after stating the concrete blocker. If explicitly assigned to take over after another model fails, implement the bounded task and run relevant checks; otherwise do not change files.'
     ;;
   v4flash)
-    model='example/model'
     role='V4 Flash'
     thinking='medium'
     session_key='v4flash'
@@ -129,7 +126,6 @@ case "$channel" in
     role_prompt='Rapidly explore and triage. Stop when evidence is sufficient and return concise verified facts with file evidence. State uncertainty and make only scoped requested changes.'
     ;;
   m3)
-    model='example/model'
     role='MiniMax M3'
     thinking='medium'
     session_key='m3'
@@ -137,7 +133,6 @@ case "$channel" in
     role_prompt='Inspect supplied screenshots and mockups, then record concrete visual discrepancies with evidence. Do not edit implementation unless explicitly asked.'
     ;;
   kimi26)
-    model='example/model'
     role='Kimi K2.6'
     thinking='high'
     session_key='kimi26'
@@ -145,7 +140,6 @@ case "$channel" in
     role_prompt='Perform an independent adversarial final review. Focus on requirements gaps, regressions, security, and unverified assumptions. Use the supplied change set and evidence; cite files and do not edit.'
     ;;
   kimi3)
-    model='example/model'
     role='Kimi K3-256K'
     thinking='high'
     session_key='kimi3'
@@ -157,9 +151,9 @@ case "$channel" in
     ;;
 esac
 
-# Optional per-channel model override. Lookup order: $PI_CODEX_CHANNELS_CONF,
+# Required per-channel model mapping. Lookup order: $PI_CODEX_CHANNELS_CONF,
 # then channels.conf next to this script. Lines: "<channel> = <provider/model>".
-# Missing file or missing channel entry keeps the built-in default above.
+# Every channel used must be present; there are no built-in model defaults.
 conf_file="${PI_CODEX_CHANNELS_CONF:-${0:A:h}/channels.conf}"
 if [[ -f "$conf_file" ]]; then
   conf_model=$(awk -v ch="$channel" '
@@ -177,6 +171,13 @@ if [[ -f "$conf_file" ]]; then
     }
   ' "$conf_file")
   [[ -n "$conf_model" ]] && model="$conf_model"
+fi
+
+if [[ -z "${model:-}" ]]; then
+  print -u2 "No model configured for channel '${channel}'."
+  print -u2 "Copy scripts/channels.conf.example to scripts/channels.conf and add '${channel} = <provider/model>'."
+  print -u2 "Run 'pi models' to list providers and models available on your machine."
+  exit 64
 fi
 
 thread_short="${TASK_ID[1,13]}"

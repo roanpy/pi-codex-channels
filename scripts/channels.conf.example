@@ -4,8 +4,8 @@
 # already knows. Run "pi models" to see what is configured locally.
 #
 # Format:  <channel> = <provider/model>
-# Lines without an entry for a channel keep the script's built-in default.
-# Unknown channels are ignored.
+# Every channel you invoke must have an entry; the script ships with no
+# built-in model defaults.
 
 # glm52  = anthropic/claude-sonnet-4-5
 # ds4pro = anthropic/claude-opus-4-1
